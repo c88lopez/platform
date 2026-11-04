@@ -1,0 +1,117 @@
+# Standalone cAdvisor for Docker Desktop Kubernetes.
+#
+# On Docker Desktop (cri-dockerd runtime) the kubelet's embedded cAdvisor cannot
+# resolve container cgroups to Docker containers, so /metrics/cadvisor only has
+# pod-level series with empty `container` / `image` labels. The kube-prometheus
+# recording rules require `container!=""` and `image!=""`, which leaves the
+# "Kubernetes / Compute Resources / *" dashboards empty.
+#
+# This cAdvisor talks to Docker directly, and the ServiceMonitor rewrites its
+# series so they look like the kubelet's cAdvisor (job="kubelet",
+# metrics_path="/metrics/cadvisor", container/pod/namespace labels).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cadvisor
+  namespace: monitoring
+  labels:
+    app: cadvisor
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  template:
+    metadata:
+      labels:
+        app: cadvisor
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: cadvisor
+          # >= v0.54 is needed for Docker's containerd image store (google/cadvisor#3709)
+          image: ghcr.io/google/cadvisor:v0.60.6
+          args:
+            - --docker_only=true
+            - --housekeeping_interval=10s
+            - --store_container_labels=false
+            - --whitelisted_container_labels=io.kubernetes.container.name,io.kubernetes.pod.name,io.kubernetes.pod.namespace
+            - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 100Mi
+            limits:
+              memory: 300Mi
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - { name: rootfs, mountPath: /rootfs, readOnly: true }
+            - { name: var-run, mountPath: /var/run, readOnly: true }
+            - { name: sys, mountPath: /sys, readOnly: true }
+            - { name: docker, mountPath: /var/lib/docker, readOnly: true }
+            - { name: disk, mountPath: /dev/disk, readOnly: true }
+      volumes:
+        - { name: rootfs, hostPath: { path: / } }
+        - { name: var-run, hostPath: { path: /var/run } }
+        - { name: sys, hostPath: { path: /sys } }
+        - { name: docker, hostPath: { path: /var/lib/docker } }
+        - { name: disk, hostPath: { path: /dev/disk } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cadvisor
+  namespace: monitoring
+  labels:
+    app: cadvisor
+spec:
+  clusterIP: None
+  selector:
+    app: cadvisor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cadvisor
+  namespace: monitoring
+  labels:
+    app: cadvisor
+spec:
+  selector:
+    matchLabels:
+      app: cadvisor
+  endpoints:
+    - port: http
+      interval: 30s
+      honorLabels: false
+      relabelings:
+        - targetLabel: job
+          replacement: kubelet
+        - targetLabel: metrics_path
+          replacement: /metrics/cadvisor
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+      metricRelabelings:
+        # cAdvisor's own `pod`/`namespace` labels would collide with the target's
+        - regex: (pod|namespace|container)
+          action: labeldrop
+        - sourceLabels: [container_label_io_kubernetes_container_name]
+          targetLabel: container
+        - sourceLabels: [container_label_io_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [container_label_io_kubernetes_pod_namespace]
+          targetLabel: namespace
+        - regex: container_label_.*
+          action: labeldrop
+        # Keep only real workload containers (no pause containers, no root/system cgroups)
+        - sourceLabels: [container]
+          regex: (|POD)
+          action: drop

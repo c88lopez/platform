@@ -1,0 +1,93 @@
+# Grafana (grafana/grafana 10.5.15), release "my-grafana". Only the settings
+# that differ from the chart's defaults are here.
+#
+#   make grafana
+#
+# Dashboards and datasources also come from ConfigMaps in any namespace,
+# through the sidecars: label grafana_dashboard / grafana_datasource, and
+# the grafana_folder annotation picks the folder (see importer's dashboards).
+# The Loki and Tempo datasources are manifests/monitoring/grafana-datasources.yaml.
+#
+# The PostgreSQL datasource's password comes from the grafana-postgres Secret
+# in `monitoring` (see README, "Secrets"), not from this file.
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - disableDeletion: false
+      editable: true
+      folder: PostgreSQL
+      name: postgres
+      options:
+        path: "/var/lib/grafana/dashboards/postgres"
+      orgId: 1
+      type: file
+    - disableDeletion: false
+      editable: true
+      folder: Redis
+      name: redis
+      options:
+        path: "/var/lib/grafana/dashboards/redis"
+      orgId: 1
+      type: file
+dashboards:
+  postgres:
+    cloudnative-pg:
+      datasource:
+      - name: DS_PROMETHEUS
+        value: prometheus
+      - name: DS_EXPRESSION
+        value: __expr__
+      gnetId: 20417
+      revision: 4
+  redis:
+    redis-exporter:
+      datasource:
+      - name: DS_PROM
+        value: prometheus
+      gnetId: 763
+      revision: 6
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - access: proxy
+      isDefault: true
+      name: Prometheus
+      type: prometheus
+      uid: prometheus
+      url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+    - access: proxy
+      jsonData:
+        database: postgres
+        postgresVersion: 1800
+        sslmode: disable
+      name: PostgreSQL
+      secureJsonData:
+        password: "${GRAFANA_POSTGRES_PASSWORD}"
+      type: grafana-postgresql-datasource
+      uid: postgres
+      url: postgres.default.svc.cluster.local:5432
+      user: postgres
+initChownData:
+  securityContext:
+    capabilities:
+      add:
+      - CHOWN
+      - DAC_OVERRIDE
+persistence:
+  enabled: true
+sidecar:
+  dashboards:
+    enabled: true
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true
+    searchNamespace: ALL
+  datasources:
+    enabled: true
+envValueFrom:
+  GRAFANA_POSTGRES_PASSWORD:
+    secretKeyRef:
+      name: grafana-postgres
+      key: password

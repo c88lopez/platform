@@ -1,0 +1,45 @@
+# Tempo (grafana/tempo chart 1.24.4) in single binary mode with local storage.
+# Traces arrive over OTLP, usually via Alloy (see alloy.yaml).
+#
+#   make tempo
+tempo:
+  retention: 72h
+  reportingEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  # The local-blocks processor powers TraceQL metrics (rate, histograms), which
+  # Grafana's Traces Drilldown app relies on. Nothing is remote-written.
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://kube-prometheus-stack-prometheus.monitoring.svc:9090/api/v1/write
+    processor:
+      local_blocks:
+        filter_server_spans: false
+        flush_to_storage: true
+    storage:
+      path: /var/tempo/generator/wal
+    traces_storage:
+      path: /var/tempo/generator/traces
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - local-blocks
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClassName: hostpath

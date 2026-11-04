@@ -1,0 +1,6 @@
+# CloudNativePG operator (cnpg/cloudnative-pg 0.29.1). The Postgres cluster
+# itself is manifests/data/postgres.yaml.
+#
+#   make cloudnative-pg
+monitoring:
+  podMonitorEnabled: true

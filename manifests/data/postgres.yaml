@@ -1,0 +1,35 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: default
+spec:
+  enableSuperuserAccess: true
+  imageName: ghcr.io/cloudnative-pg/postgresql:18
+  instances: 1
+  managed:
+    services:
+      additional:
+      - selectorType: rw
+        serviceTemplate:
+          metadata:
+            name: postgres
+          spec:
+            type: ClusterIP
+  storage:
+    size: 1Gi
+  superuserSecret:
+    name: postgres-superuser
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgres
+  namespace: default
+spec:
+  podMetricsEndpoints:
+  - interval: 30s
+    port: metrics
+  selector:
+    matchLabels:
+      cnpg.io/cluster: postgres

@@ -1,0 +1,6 @@
+# cert-manager (jetstack/cert-manager v1.20.2). The RabbitMQ operator uses it
+# for its webhook certificates.
+#
+#   make cert-manager
+crds:
+  enabled: true

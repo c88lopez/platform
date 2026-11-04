@@ -1,0 +1,40 @@
+# kube-prometheus-stack (prometheus-community/kube-prometheus-stack 92.16.0):
+# Prometheus, its operator, kube-state-metrics and node-exporter. Grafana is
+# a separate release (grafana.yaml) and Alertmanager is off.
+#
+#   make kube-prometheus-stack
+#
+# The *NilUsesHelmValues: false settings make Prometheus pick up every
+# ServiceMonitor, PodMonitor and rule in the cluster, not only the chart's.
+alertmanager:
+  enabled: false
+grafana:
+  defaultDashboardsTimezone: browser
+  enabled: false
+  forceDeployDashboards: true
+kubeControllerManager:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeScheduler:
+  enabled: false
+prometheus:
+  prometheusSpec:
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 15d
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+          storageClassName: hostpath
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false
