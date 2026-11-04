@@ -8,6 +8,19 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:18
   instances: 1
   managed:
+    # Database users besides `app` (created by the bootstrap) and `postgres`.
+    # Each password comes from a kubernetes.io/basic-auth Secret in `default`
+    # (see README, "Secrets"); cnpg.io/reload=true on it applies a new one.
+    roles:
+    - name: grafana
+      ensure: present
+      login: true
+      # Read-only: can read every table and the monitoring views, change nothing.
+      inRoles:
+      - pg_read_all_data
+      - pg_monitor
+      passwordSecret:
+        name: grafana-postgres-role
     services:
       additional:
       - selectorType: rw
