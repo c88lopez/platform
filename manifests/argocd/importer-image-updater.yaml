@@ -37,3 +37,8 @@ spec:
           manifestTargets:
             kustomize:
               name: ghcr.io/c88lopez/importer-worker
+        - alias: graphql
+          imageName: ghcr.io/c88lopez/importer-graphql:~1
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/c88lopez/importer-graphql
