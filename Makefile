@@ -5,11 +5,11 @@
 # Releases keep the names they were first installed with (cnpg, my-grafana):
 # renaming a Helm release means uninstalling and reinstalling it.
 
-.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password argocd-apps diff
+.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password argocd-image-updater argocd-apps diff
 
 RABBITMQ_OPERATOR := https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml
 
-all: repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd argocd-apps ## install everything, in order (needs the Secrets, see README)
+all: repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
 
 repos: ## add the Helm chart repositories
 	helm repo add jetstack https://charts.jetstack.io
@@ -64,6 +64,10 @@ argocd: ## Argo CD, which deploys the apps from Git (UI: http://<node>:30081)
 
 argocd-password: ## print the initial admin password (delete the Secret once you have changed it)
 	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+
+argocd-image-updater: ## Image Updater: commits new image tags to the apps' repos (needs the importer-git-write Secret)
+	helm upgrade --install argocd-image-updater argo/argocd-image-updater --version 1.4.0 \
+	  -n argocd -f helm/argocd-image-updater.yaml --wait
 
 argocd-apps: ## the apps Argo CD deploys (manifests/argocd/): their project and Applications
 	kubectl apply -f manifests/argocd/

@@ -1,0 +1,19 @@
+# Argo CD Image Updater: watches the registry for new image tags and commits
+# them to the app's repo, where Argo CD picks them up. What it watches and
+# where it writes is in manifests/argocd/*-image-updater.yaml.
+
+config:
+  git.user: argocd-image-updater
+  git.email: argocd-image-updater@users.noreply.github.com
+  # [skip ci]: the commit only changes a tag, so there's nothing for CI to build.
+  git.commit-message-template: |
+    deploy: {{ .AppName }} to {{ range $i, $c := .AppChanges }}{{ if $i }}, {{ end }}{{ $c.NewTag }}{{ end }} [skip ci]
+
+    {{ range .AppChanges -}}
+    {{ .Image }}: {{ .OldTag }} -> {{ .NewTag }}
+    {{ end -}}
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
