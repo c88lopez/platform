@@ -2,6 +2,9 @@
 # installed with make; Argo CD only manages what has an Application for it.
 
 configs:
+  cm:
+    # Links in the UI and CLI point here (the chart's default is argocd.example.com).
+    url: http://192.168.68.57:30081
   params:
     # Serve plain HTTP: the UI is only reachable on the LAN, through the NodePort below.
     server.insecure: true
