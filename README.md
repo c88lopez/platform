@@ -14,10 +14,11 @@ helm/                        values for each Helm release (only what differs fro
   tempo.yaml                   grafana/tempo 1.24.4                    ns monitoring
   alloy.yaml                   grafana/alloy 1.14.4                    ns monitoring
   argocd.yaml                  argo/argo-cd 10.11.7 (Argo CD 3.5.7)    ns argocd
+  argocd-image-updater.yaml    argo/argocd-image-updater 1.4.0         ns argocd
 manifests/
   data/                        Postgres (CloudNativePG Cluster), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
   monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
-  argocd/                      the apps Argo CD deploys: the `apps` project and one Application per app
+  argocd/                      the apps Argo CD deploys: the `apps` project and one Application per app, and what Image Updater watches
 Makefile                     one target per component, plus `make all`
 ```
 
@@ -32,13 +33,13 @@ The RabbitMQ cluster operator isn't copied here. `make rabbitmq-operator` applie
 | `rabbitmq-system` | RabbitMQ cluster operator | Manages the `rabbitmq` cluster |
 | `default` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
-| `argocd` | Argo CD | Deploys the apps from Git. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
+| `argocd` | Argo CD, Image Updater | Deploys the apps from Git, and commits their new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
 
 Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor runs as its own DaemonSet because the kubelet's built-in one can't see container names on Docker Desktop (see `manifests/monitoring/cadvisor.yaml`).
 
 ## Secrets
 
-Secrets are never committed. These must exist before `make data` and `make grafana`. Create them with `kubectl create`, not `kubectl apply`: apply keeps a plain-text copy of the values in the `last-applied-configuration` annotation.
+Secrets are never committed. These must exist before `make data`, `make grafana` and `make argocd-image-updater`. Create them with `kubectl create`, not `kubectl apply`: apply keeps a plain-text copy of the values in the `last-applied-configuration` annotation.
 
 ```sh
 # Postgres superuser. CloudNativePG reads it (enableSuperuserAccess is on); nothing
@@ -56,6 +57,13 @@ kubectl -n monitoring create secret generic grafana-postgres --from-literal=pass
 
 # Redis password (the server and its exporter read it)
 kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<redis password>'
+
+# Image Updater's deploy key: write access to the importer repo, nothing else.
+# The private key goes only into the Secret.
+ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f importer-deploy-key
+gh repo deploy-key add importer-deploy-key.pub -R c88lopez/importer --allow-write -t argocd-image-updater
+kubectl -n argocd create secret generic importer-git-write --from-file=sshPrivateKey=importer-deploy-key
+rm importer-deploy-key importer-deploy-key.pub
 ```
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
@@ -90,5 +98,7 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 | Application | Source | Sync |
 | --- | --- | --- |
 | `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
+
+Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater --replicas=0`. To roll back, revert the commit in importer.
 
 Deleting an Application leaves what it deployed running (there's no resources-finalizer).

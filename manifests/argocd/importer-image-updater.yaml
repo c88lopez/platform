@@ -1,0 +1,39 @@
+# Deploys new importer releases: when CI pushes a new 1.x.y tag for an image,
+# Image Updater (checking every 2 minutes) commits it as that image's newTag in
+# k8s/kustomization.yaml on importer's main, and the importer Application
+# syncs it: migration first, then the rollout.
+#
+# Only full x.y.z tags count; CI's main, sha-*, 1.6 and latest tags are ignored.
+# ~1 keeps it on major version 1: a 2.0.0 needs a person to change this.
+#
+# It pushes with a deploy key (write access to importer only), from the
+# importer-git-write Secret; see the README.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: importer
+  namespace: argocd
+spec:
+  commonUpdateSettings:
+    updateStrategy: semver
+    allowTags: regexp:^[0-9]+\.[0-9]+\.[0-9]+$
+  writeBackConfig:
+    method: git:secret:argocd/importer-git-write
+    gitConfig:
+      # SSH, for the deploy key. Argo CD itself still reads the repo over HTTPS.
+      repository: git@github.com:c88lopez/importer.git
+      branch: main
+      writeBackTarget: kustomization
+  applicationRefs:
+    - namePattern: importer
+      images:
+        - alias: api
+          imageName: ghcr.io/c88lopez/importer-api:~1
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/c88lopez/importer-api
+        - alias: worker
+          imageName: ghcr.io/c88lopez/importer-worker:~1
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/c88lopez/importer-worker
