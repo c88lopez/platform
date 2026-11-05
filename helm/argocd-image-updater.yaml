@@ -6,8 +6,9 @@ config:
   git.user: argocd-image-updater
   git.email: argocd-image-updater@users.noreply.github.com
   # [skip ci]: the commit only changes a tag, so there's nothing for CI to build.
+  # The subject names one version (both images share it); the body lists each image.
   git.commit-message-template: |
-    deploy: {{ .AppName }} to {{ range $i, $c := .AppChanges }}{{ if $i }}, {{ end }}{{ $c.NewTag }}{{ end }} [skip ci]
+    deploy: {{ .AppName }} {{ (index .AppChanges 0).NewTag }} [skip ci]
 
     {{ range .AppChanges -}}
     {{ .Image }}: {{ .OldTag }} -> {{ .NewTag }}
