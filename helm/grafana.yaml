@@ -8,7 +8,8 @@
 # the grafana_folder annotation picks the folder (see importer's dashboards).
 # The Loki and Tempo datasources are manifests/monitoring/grafana-datasources.yaml.
 #
-# The PostgreSQL datasource's password comes from the grafana-postgres Secret
+# The PostgreSQL datasource logs in as `grafana`, a read-only database user
+# (manifests/data/postgres.yaml). Its password comes from the grafana-postgres Secret
 # in `monitoring` (see README, "Secrets"), not from this file.
 dashboardProviders:
   dashboardproviders.yaml:
@@ -68,7 +69,7 @@ datasources:
       type: grafana-postgresql-datasource
       uid: postgres
       url: postgres.default.svc.cluster.local:5432
-      user: postgres
+      user: grafana
 initChownData:
   securityContext:
     capabilities:

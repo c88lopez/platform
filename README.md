@@ -35,21 +35,34 @@ Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor
 
 ## Secrets
 
-Secrets are never committed. These must exist before `make data` and `make grafana`. Create them with your own values:
+Secrets are never committed. These must exist before `make data` and `make grafana`. Create them with `kubectl create`, not `kubectl apply`: apply keeps a plain-text copy of the values in the `last-applied-configuration` annotation.
 
 ```sh
-# Postgres superuser (CloudNativePG reads it; enableSuperuserAccess is on)
+# Postgres superuser. CloudNativePG reads it (enableSuperuserAccess is on); nothing
+# else should log in as it. cnpg.io/reload=true makes a new password take effect.
 kubectl -n default create secret generic postgres-superuser --type=kubernetes.io/basic-auth \
   --from-literal=username=postgres --from-literal=password='<superuser password>'
+kubectl -n default label secret postgres-superuser cnpg.io/reload=true
+
+# Grafana's read-only database user (the `grafana` role in manifests/data/postgres.yaml),
+# and the same password for Grafana's PostgreSQL datasource (helm/grafana.yaml).
+kubectl -n default create secret generic grafana-postgres-role --type=kubernetes.io/basic-auth \
+  --from-literal=username=grafana --from-literal=password='<grafana password>'
+kubectl -n default label secret grafana-postgres-role cnpg.io/reload=true
+kubectl -n monitoring create secret generic grafana-postgres --from-literal=password='<grafana password>'
 
 # Redis password (the server and its exporter read it)
 kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<redis password>'
-
-# Grafana's PostgreSQL datasource (helm/grafana.yaml reads it as GRAFANA_POSTGRES_PASSWORD)
-kubectl -n monitoring create secret generic grafana-postgres --from-literal=password='<datasource password>'
 ```
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
+
+To rotate a password, replace the Secret, which drops any old annotation, then restart whatever reads it (CloudNativePG picks up its own):
+
+```sh
+kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<new>' \
+  --dry-run=client -o yaml | kubectl replace -f -
+```
 
 ## Rebuild from scratch
 
