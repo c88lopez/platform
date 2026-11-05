@@ -1,0 +1,19 @@
+# The project for the apps Argo CD deploys. Narrower than `default`: an app can
+# only come from its own repo and only touch its own namespace, so a mistake
+# in an app's manifests can't reach the infra in `default` or `monitoring`.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  description: Applications deployed from their own repos
+  sourceRepos:
+    - https://github.com/c88lopez/importer.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: importer
+  # The only cluster-scoped thing an app may create is its own namespace.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace

@@ -1,0 +1,23 @@
+# importer: the API and the worker, from k8s/ in the importer repo (a
+# kustomization; its newTag is the version that runs).
+#
+# Manual sync for now: Argo CD shows what differs from Git, and nothing
+# changes until someone presses Sync. Its migration Job is a PreSync hook, so
+# every sync migrates first and stops if the migration fails.
+#
+# No resources-finalizer: deleting this Application leaves everything it
+# deployed running, including the namespace and its Secrets.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: importer
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/c88lopez/importer.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: importer

@@ -17,6 +17,7 @@ helm/                        values for each Helm release (only what differs fro
 manifests/
   data/                        Postgres (CloudNativePG Cluster), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
   monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
+  argocd/                      the apps Argo CD deploys: the `apps` project and one Application per app
 Makefile                     one target per component, plus `make all`
 ```
 
@@ -74,10 +75,20 @@ make repos
 make all
 ```
 
-`make all` runs in dependency order: cert-manager, then the operators, then Prometheus (whose CRDs the monitors need), the data services, then the rest of monitoring, then Argo CD. After that, deploy the apps from their repos (importer: `make secrets && make deploy`).
+`make all` runs in dependency order: cert-manager, then the operators, then Prometheus (whose CRDs the monitors need), the data services, then the rest of monitoring, then Argo CD. That includes the importer's Application. Its Secrets aren't in Git, so create them first from the importer repo (`make secrets`), then sync it in Argo CD.
 
 ## Changing something
 
 Edit the file, then run its target, e.g. `make loki` or `make data`. Each target is an idempotent `helm upgrade --install` or `kubectl apply`. To upgrade a chart, change its `--version` in the Makefile and check the chart's upgrade notes first.
 
 `make diff` shows any drift between `manifests/` and the cluster. For a Helm release, compare `helm get values <release> -n <namespace>` with its file.
+
+## Apps (Argo CD)
+
+Each app's manifests live in its own repo; `manifests/argocd/` has one Application per app that points at them. They belong to the `apps` project, which only allows the app's repo as a source and its own namespace as a destination.
+
+| Application | Source | Sync |
+| --- | --- | --- |
+| `importer` | `c88lopez/importer`, `k8s/` on `main` | manual: press Sync in the UI |
+
+Deleting an Application leaves what it deployed running (there's no resources-finalizer).
