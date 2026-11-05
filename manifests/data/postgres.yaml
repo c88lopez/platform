@@ -29,6 +29,16 @@ spec:
             name: postgres
           spec:
             type: ClusterIP
+  # It uses ~10m CPU and ~140Mi (128Mi of it shared_buffers) at rest. The
+  # CloudNativePG dashboard's utilisation gauges divide usage by these requests,
+  # and show "Missing request" without them. No CPU limit: throttling the only
+  # database instance would slow every service at once.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
   storage:
     size: 1Gi
   superuserSecret:
