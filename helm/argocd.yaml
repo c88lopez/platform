@@ -34,4 +34,4 @@ dex:
 notifications:
   enabled: false
 applicationSet:
-  enabled: false
+  replicas: 0 # the chart has no enabled flag for it
