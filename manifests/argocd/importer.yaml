@@ -1,9 +1,15 @@
 # importer: the API and the worker, from k8s/ in the importer repo (a
 # kustomization; its newTag is the version that runs).
 #
-# Manual sync for now: Argo CD shows what differs from Git, and nothing
-# changes until someone presses Sync. Its migration Job is a PreSync hook, so
-# every sync migrates first and stops if the migration fails.
+# Syncs automatically: a commit to k8s/ on main (a new newTag, a ConfigMap
+# change) is deployed within about 3 minutes. Its migration Job is a PreSync
+# hook, so every sync migrates first and stops if the migration fails; a failed
+# sync isn't retried, the next commit is.
+#
+# prune: a resource removed from k8s/ is deleted from the cluster.
+# No selfHeal: a change made by hand (kubectl scale, edit) stays until the next
+# commit, and shows as OutOfSync meanwhile. Turn it on to have Argo CD undo
+# those right away.
 #
 # No resources-finalizer: deleting this Application leaves everything it
 # deployed running, including the namespace and its Secrets.
@@ -21,3 +27,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: importer
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false

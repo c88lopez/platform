@@ -89,6 +89,6 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 
 | Application | Source | Sync |
 | --- | --- | --- |
-| `importer` | `c88lopez/importer`, `k8s/` on `main` | manual: press Sync in the UI |
+| `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
 
 Deleting an Application leaves what it deployed running (there's no resources-finalizer).
