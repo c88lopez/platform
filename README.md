@@ -99,6 +99,6 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 | --- | --- | --- |
 | `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
 
-Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater --replicas=0`. To roll back, revert the commit in importer.
+Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater-controller --replicas=0`. To roll back, add the bad version to the rule's `ignoreTags` (`commonUpdateSettings.ignoreTags: ["1.7.0"]`), `make argocd-apps`, then revert its commit in the app's repo. Reverting alone doesn't stick: on its next check Image Updater sees the bad tag is still the newest and commits it again.
 
 Deleting an Application leaves what it deployed running (there's no resources-finalizer).
