@@ -1,6 +1,6 @@
 # platform
 
-Everything that runs in the Docker Desktop cluster (`192.168.68.57`, context `docker-desktop`) except the applications: operators, data services and monitoring. The apps deploy from their own repos, like [importer](https://github.com/c88lopez/importer).
+Everything that runs in the Docker Desktop cluster (`192.168.68.57`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
 
 Until this repo existed, most of this was installed by hand and lived only in the cluster. Each file here was exported from the running cluster and checked against it, so applying it changes nothing.
 
@@ -13,6 +13,7 @@ helm/                        values for each Helm release (only what differs fro
   loki.yaml                    grafana/loki 7.5.0                      ns monitoring
   tempo.yaml                   grafana/tempo 1.24.4                    ns monitoring
   alloy.yaml                   grafana/alloy 1.14.4                    ns monitoring
+  argocd.yaml                  argo/argo-cd 10.11.7 (Argo CD 3.5.7)    ns argocd
 manifests/
   data/                        Postgres (CloudNativePG Cluster), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
   monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
@@ -30,6 +31,7 @@ The RabbitMQ cluster operator isn't copied here. `make rabbitmq-operator` applie
 | `rabbitmq-system` | RabbitMQ cluster operator | Manages the `rabbitmq` cluster |
 | `default` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
+| `argocd` | Argo CD | Deploys the apps from Git. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
 
 Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor runs as its own DaemonSet because the kubelet's built-in one can't see container names on Docker Desktop (see `manifests/monitoring/cadvisor.yaml`).
 
@@ -72,7 +74,7 @@ make repos
 make all
 ```
 
-`make all` runs in dependency order: cert-manager, then the operators, then Prometheus (whose CRDs the monitors need), the data services, then the rest of monitoring. After that, deploy the apps from their repos (importer: `make secrets && make deploy`).
+`make all` runs in dependency order: cert-manager, then the operators, then Prometheus (whose CRDs the monitors need), the data services, then the rest of monitoring, then Argo CD. After that, deploy the apps from their repos (importer: `make secrets && make deploy`).
 
 ## Changing something
 

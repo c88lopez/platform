@@ -1,0 +1,37 @@
+# Argo CD: deploys the apps (importer) from Git. Infra in this repo is still
+# installed with make; Argo CD only manages what has an Application for it.
+
+configs:
+  params:
+    # Serve plain HTTP: the UI is only reachable on the LAN, through the NodePort below.
+    server.insecure: true
+
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 30081 # the importer API has 30080
+    nodePortHttps: 30444
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Not used: no SSO (log in as admin), no notifications, no ApplicationSets.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  enabled: false

@@ -5,17 +5,18 @@
 # Releases keep the names they were first installed with (cnpg, my-grafana):
 # renaming a Helm release means uninstalling and reinstalling it.
 
-.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests diff
+.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password diff
 
 RABBITMQ_OPERATOR := https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml
 
-all: repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests ## install everything, in order (needs the Secrets, see README)
+all: repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd ## install everything, in order (needs the Secrets, see README)
 
 repos: ## add the Helm chart repositories
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
+	helm repo add argo https://argoproj.github.io/argo-helm
 	helm repo update
 
 ## --- operators ---
@@ -55,6 +56,14 @@ alloy: ## Alloy: ships pod logs to Loki, forwards OTLP traces to Tempo
 
 monitoring-manifests: ## cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
 	kubectl apply -f manifests/monitoring/
+
+## --- delivery ---
+argocd: ## Argo CD, which deploys the apps from Git (UI: http://<node>:30081)
+	helm upgrade --install argocd argo/argo-cd --version 10.11.7 \
+	  -n argocd --create-namespace -f helm/argocd.yaml --wait
+
+argocd-password: ## print the initial admin password (delete the Secret once you have changed it)
+	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 
 ## --- checks ---
 diff: ## show how the cluster differs from manifests/ (Helm releases: compare with helm get values)
