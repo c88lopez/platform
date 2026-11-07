@@ -87,7 +87,7 @@ make repos
 make all
 ```
 
-`make all` runs in dependency order: cert-manager, then the operators, then Prometheus (whose CRDs the monitors need), the data services, then the rest of monitoring, then Argo CD. That includes the importer's Application. Its Secrets aren't in Git, so create them first from the importer repo (`make secrets`), then sync it in Argo CD.
+`make all` runs in dependency order: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, then the rest of monitoring, then Argo CD. That includes the importer's Application. Its Secrets aren't in Git, so create them first from the importer repo (`make secrets`), then sync it in Argo CD.
 
 ## Changing something
 
