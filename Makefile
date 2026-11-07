@@ -9,7 +9,7 @@
 
 RABBITMQ_OPERATOR := https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml
 
-all: repos cert-manager cloudnative-pg rabbitmq-operator metrics-server keda kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
+all: repos cert-manager kube-prometheus-stack cloudnative-pg rabbitmq-operator metrics-server keda data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
 
 repos: ## add the Helm chart repositories
 	helm repo add jetstack https://charts.jetstack.io
