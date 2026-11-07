@@ -8,6 +8,8 @@ Until this repo existed, most of this was installed by hand and lived only in th
 helm/                        values for each Helm release (only what differs from the chart's defaults)
   cert-manager.yaml            jetstack/cert-manager v1.20.2           ns cert-manager
   cloudnative-pg.yaml          cnpg/cloudnative-pg 0.29.1              ns cnpg-system   (release "cnpg")
+  metrics-server.yaml          metrics-server/metrics-server 3.14.0    ns kube-system
+  keda.yaml                    kedacore/keda 2.21.0                    ns keda
   kube-prometheus-stack.yaml   prometheus-community/... 92.16.0        ns monitoring
   grafana.yaml                 grafana/grafana 10.5.15                 ns monitoring    (release "my-grafana")
   loki.yaml                    grafana/loki 7.5.0                      ns monitoring
@@ -31,6 +33,8 @@ The RabbitMQ cluster operator isn't copied here. `make rabbitmq-operator` applie
 | `cert-manager` | cert-manager | Webhook certificates for the RabbitMQ operator |
 | `cnpg-system` | CloudNativePG operator | Manages the `postgres` cluster |
 | `rabbitmq-system` | RabbitMQ cluster operator | Manages the `rabbitmq` cluster |
+| `kube-system` | metrics-server | Pods' current CPU and memory, for HorizontalPodAutoscalers and `kubectl top` |
+| `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
 | `default` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
 | `argocd` | Argo CD, Image Updater | Deploys the apps from Git, and commits their new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |

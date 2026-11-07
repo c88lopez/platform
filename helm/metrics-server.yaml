@@ -1,0 +1,10 @@
+# metrics-server (metrics-server/metrics-server 3.14.0, metrics-server 0.9.0).
+# Serves pods' and nodes' current CPU and memory (the metrics.k8s.io API) to
+# HorizontalPodAutoscalers and `kubectl top`. Not Prometheus: it keeps only the
+# latest sample, scraped from each kubelet every 15s.
+#
+#   make metrics-server
+args:
+  # Docker Desktop's kubelet serves a self-signed certificate that doesn't name
+  # its IP, so metrics-server can't verify it. A real cluster shouldn't need this.
+  - --kubelet-insecure-tls

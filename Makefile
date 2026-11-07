@@ -5,11 +5,11 @@
 # Releases keep the names they were first installed with (cnpg, my-grafana):
 # renaming a Helm release means uninstalling and reinstalling it.
 
-.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password argocd-image-updater argocd-apps diff
+.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password argocd-image-updater argocd-apps metrics-server keda diff
 
 RABBITMQ_OPERATOR := https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml
 
-all: repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
+all: repos cert-manager cloudnative-pg rabbitmq-operator metrics-server keda kube-prometheus-stack data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
 
 repos: ## add the Helm chart repositories
 	helm repo add jetstack https://charts.jetstack.io
@@ -17,6 +17,8 @@ repos: ## add the Helm chart repositories
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo add argo https://argoproj.github.io/argo-helm
+	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+	helm repo add kedacore https://kedacore.github.io/charts
 	helm repo update
 
 ## --- operators ---
@@ -31,6 +33,15 @@ cloudnative-pg: ## CloudNativePG operator
 rabbitmq-operator: ## RabbitMQ cluster operator (upstream manifest, pinned)
 	kubectl apply -f $(RABBITMQ_OPERATOR)
 	kubectl -n rabbitmq-system rollout status deployment/rabbitmq-cluster-operator
+
+## --- autoscaling ---
+metrics-server: ## metrics-server: pod CPU and memory for HPAs and kubectl top
+	helm upgrade --install metrics-server metrics-server/metrics-server --version 3.14.0 \
+	  -n kube-system -f helm/metrics-server.yaml --wait
+
+keda: ## KEDA: scale Deployments on queue length and other events
+	helm upgrade --install keda kedacore/keda --version 2.21.0 \
+	  -n keda --create-namespace -f helm/keda.yaml --wait
 
 ## --- data services ---
 data: ## Postgres, RabbitMQ and Redis in `default` (needs their Secrets first)
