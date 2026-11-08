@@ -29,6 +29,11 @@ configs:
     # KEDA and CloudNativePG, defaults from admission webhooks) then don't
     # show as differences.
     controller.diff.server.side: true
+    # How long the controller waits for the repo server to render an app
+    # (default 60s). On the first sync, right after the repo server restarted
+    # with an empty cache, all the apps asked for their charts at once and
+    # keda, metrics-server and loki timed out.
+    controller.repo.server.timeout.seconds: 180
 
 server:
   service:
