@@ -7,7 +7,7 @@
 # hostPath mounts of /var/log/pods are needed. That only works with a single
 # Alloy instance, otherwise every replica would ship every log line.
 #
-#   make alloy
+#   Deployed by Argo CD: apps/alloy.yaml
 controller:
   type: deployment
   replicas: 1

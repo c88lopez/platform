@@ -1,0 +1,33 @@
+# Argo CD manages itself. Its first install is `make bootstrap`, which renders
+# this same chart version (ARGOCD_CHART in the Makefile: keep the two equal).
+# Chart argo-cd 10.11.7, release "argocd", values in helm/argocd.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.11.7
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/helm/argocd.yaml
+    - repoURL: https://github.com/c88lopez/platform.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

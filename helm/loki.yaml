@@ -1,7 +1,7 @@
 # Loki (grafana/loki chart 7.5.0) in monolithic mode with filesystem storage.
 # Sized for the single-node Docker Desktop cluster.
 #
-#   make loki
+#   Deployed by Argo CD: apps/loki.yaml
 deploymentMode: SingleBinary
 
 loki:

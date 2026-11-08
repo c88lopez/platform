@@ -2,7 +2,7 @@
 # length of a RabbitMQ queue: a ScaledObject creates and drives an HPA for its
 # Deployment. importer-worker scales this way (importer's k8s/worker/).
 #
-#   make keda
+#   Deployed by Argo CD: apps/keda.yaml
 #
 # It serves the external.metrics.k8s.io API, which only one thing in a cluster
 # can serve: don't also install prometheus-adapter's external metrics.

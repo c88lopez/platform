@@ -1,6 +1,6 @@
 # cert-manager (jetstack/cert-manager v1.20.2). The RabbitMQ operator uses it
 # for its webhook certificates.
 #
-#   make cert-manager
+#   Deployed by Argo CD: apps/cert-manager.yaml
 crds:
   enabled: true

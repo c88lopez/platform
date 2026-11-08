@@ -1,88 +1,35 @@
 # Everything that runs in the cluster except the apps (they deploy from their
-# own repos, e.g. importer). `make all` installs it in dependency order on an
-# empty cluster; each target is also safe to re-run on its own to apply a change.
+# own repos, e.g. importer) is deployed by Argo CD from this repo: one
+# Application per file in apps/. A commit to main is a deploy.
 #
-# Releases keep the names they were first installed with (cnpg, my-grafana):
-# renaming a Helm release means uninstalling and reinstalling it.
+# The Makefile only bootstraps that: it installs Argo CD and applies the root
+# Application, which then installs everything else, in order. It's also safe
+# to re-run on a running cluster (it's how a change to Argo CD's own settings
+# reaches it if Argo CD can't sync itself).
 
-.PHONY: all repos cert-manager cloudnative-pg rabbitmq-operator kube-prometheus-stack grafana loki tempo alloy data monitoring-manifests argocd argocd-password argocd-image-updater argocd-apps metrics-server keda diff
+.PHONY: bootstrap repos argocd root argocd-password
 
-RABBITMQ_OPERATOR := https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml
+# Keep equal to targetRevision in apps/argocd.yaml.
+ARGOCD_CHART := 10.11.7
 
-all: repos cert-manager kube-prometheus-stack cloudnative-pg rabbitmq-operator metrics-server keda data grafana loki tempo alloy monitoring-manifests argocd argocd-image-updater argocd-apps ## install everything, in order (needs the Secrets, see README)
+bootstrap: repos argocd root ## install Argo CD, then the root Application (needs the Secrets, see README)
 
-repos: ## add the Helm chart repositories
-	helm repo add jetstack https://charts.jetstack.io
-	helm repo add cnpg https://cloudnative-pg.github.io/charts
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-	helm repo add grafana https://grafana.github.io/helm-charts
+repos: ## add the Argo CD Helm chart repository (the others are only read by Argo CD)
 	helm repo add argo https://argoproj.github.io/argo-helm
-	helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-	helm repo add kedacore https://kedacore.github.io/charts
-	helm repo update
+	helm repo update argo
 
-## --- operators ---
-cert-manager: ## cert-manager (the RabbitMQ operator's webhook certificates)
-	helm upgrade --install cert-manager jetstack/cert-manager --version v1.20.2 \
-	  -n cert-manager --create-namespace -f helm/cert-manager.yaml --wait
+# Rendered and applied rather than `helm install`ed: Argo CD then owns its own
+# resources, with no Helm release next to it claiming them too.
+argocd: ## Argo CD, from helm/argocd.yaml (UI: http://<node>:30081)
+	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	helm template argocd argo/argo-cd --version $(ARGOCD_CHART) -n argocd -f helm/argocd.yaml --include-crds \
+	  | kubectl apply -n argocd --server-side --force-conflicts -f -
+	kubectl -n argocd rollout status deployment/argocd-server
+	kubectl -n argocd rollout status deployment/argocd-repo-server
+	kubectl -n argocd rollout status statefulset/argocd-application-controller
 
-cloudnative-pg: ## CloudNativePG operator
-	helm upgrade --install cnpg cnpg/cloudnative-pg --version 0.29.1 \
-	  -n cnpg-system --create-namespace -f helm/cloudnative-pg.yaml --wait
-
-rabbitmq-operator: ## RabbitMQ cluster operator (upstream manifest, pinned)
-	kubectl apply -f $(RABBITMQ_OPERATOR)
-	kubectl -n rabbitmq-system rollout status deployment/rabbitmq-cluster-operator
-
-## --- autoscaling ---
-metrics-server: ## metrics-server: pod CPU and memory for HPAs and kubectl top
-	helm upgrade --install metrics-server metrics-server/metrics-server --version 3.14.0 \
-	  -n kube-system -f helm/metrics-server.yaml --wait
-
-keda: ## KEDA: scale Deployments on queue length and other events
-	helm upgrade --install keda kedacore/keda --version 2.21.0 \
-	  -n keda --create-namespace -f helm/keda.yaml --wait
-
-## --- data services ---
-data: ## Postgres, RabbitMQ and Redis in `default` (needs their Secrets first)
-	kubectl apply -f manifests/data/
-
-## --- monitoring ---
-kube-prometheus-stack: ## Prometheus, its operator, kube-state-metrics, node-exporter
-	helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --version 92.16.0 \
-	  -n monitoring --create-namespace -f helm/kube-prometheus-stack.yaml --wait
-
-grafana: ## Grafana (needs the grafana-postgres Secret)
-	helm upgrade --install my-grafana grafana/grafana --version 10.5.15 \
-	  -n monitoring -f helm/grafana.yaml --wait
-
-loki: ## Loki, log storage
-	helm upgrade --install loki grafana/loki --version 7.5.0 -n monitoring -f helm/loki.yaml --wait
-
-tempo: ## Tempo, trace storage
-	helm upgrade --install tempo grafana/tempo --version 1.24.4 -n monitoring -f helm/tempo.yaml --wait
-
-alloy: ## Alloy: ships pod logs to Loki, forwards OTLP traces to Tempo
-	helm upgrade --install alloy grafana/alloy --version 1.14.4 -n monitoring -f helm/alloy.yaml --wait
-
-monitoring-manifests: ## cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
-	kubectl apply -f manifests/monitoring/
-
-## --- delivery ---
-argocd: ## Argo CD, which deploys the apps from Git (UI: http://<node>:30081)
-	helm upgrade --install argocd argo/argo-cd --version 10.11.7 \
-	  -n argocd --create-namespace -f helm/argocd.yaml --wait
+root: ## the `platform` project and the root Application (bootstrap/platform.yaml)
+	kubectl apply -f bootstrap/platform.yaml
 
 argocd-password: ## print the initial admin password (delete the Secret once you have changed it)
 	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
-
-argocd-image-updater: ## Image Updater: commits new image tags to the apps' repos (needs the importer-git-write Secret)
-	helm upgrade --install argocd-image-updater argo/argocd-image-updater --version 1.4.0 \
-	  -n argocd -f helm/argocd-image-updater.yaml --wait
-
-argocd-apps: ## the apps Argo CD deploys (manifests/argocd/): their project and Applications
-	kubectl apply -f manifests/argocd/
-
-## --- checks ---
-diff: ## show how the cluster differs from manifests/ (Helm releases: compare with helm get values)
-	@kubectl diff -f manifests/data/ -f manifests/monitoring/ -f manifests/argocd/ && echo "manifests/: no differences"

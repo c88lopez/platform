@@ -2,9 +2,11 @@
 
 Everything that runs in the Docker Desktop cluster (`192.168.68.57`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
 
-Until this repo existed, most of this was installed by hand and lived only in the cluster. Each file here was exported from the running cluster and checked against it, so applying it changes nothing.
+Argo CD deploys all of it from this repo's `main`: one Application per file in `apps/`, under a root Application (`bootstrap/platform.yaml`). A commit is a deploy. The Makefile only bootstraps Argo CD itself on an empty cluster.
 
 ```
+bootstrap/platform.yaml      the `platform` AppProject and the root Application, applied once by `make bootstrap`
+apps/                        one Argo CD Application per component: chart, version, release name, namespace, sync wave
 helm/                        values for each Helm release (only what differs from the chart's defaults)
   cert-manager.yaml            jetstack/cert-manager v1.20.2           ns cert-manager
   cloudnative-pg.yaml          cnpg/cloudnative-pg 0.29.1              ns cnpg-system   (release "cnpg")
@@ -21,10 +23,9 @@ manifests/
   data/                        Postgres (CloudNativePG Cluster), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
   monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
   argocd/                      the apps Argo CD deploys: the `apps` project and one Application per app, and what Image Updater watches
-Makefile                     one target per component, plus `make all`
+  rabbitmq-operator/           a kustomization of the operator's pinned upstream release manifest (v2.23.2, `cluster-operator-ghcr-io.yml`)
+Makefile                     `make bootstrap`: installs Argo CD, then the root Application
 ```
-
-The RabbitMQ cluster operator isn't copied here. `make rabbitmq-operator` applies its pinned upstream release manifest (v2.23.2, `cluster-operator-ghcr-io.yml`), which is exactly what's installed.
 
 ## What runs where
 
@@ -37,13 +38,13 @@ The RabbitMQ cluster operator isn't copied here. `make rabbitmq-operator` applie
 | `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
 | `default` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
-| `argocd` | Argo CD, Image Updater | Deploys the apps from Git, and commits their new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
+| `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
 
 Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor runs as its own DaemonSet because the kubelet's built-in one can't see container names on Docker Desktop (see `manifests/monitoring/cadvisor.yaml`).
 
 ## Secrets
 
-Secrets are never committed. These must exist before `make data`, `make grafana` and `make argocd-image-updater`. Create them with `kubectl create`, not `kubectl apply`: apply keeps a plain-text copy of the values in the `last-applied-configuration` annotation.
+Secrets are never committed. Create these before `make bootstrap`: the `data`, `grafana` and `argocd-image-updater` Applications need them. Create them with `kubectl create`, not `kubectl apply`: apply keeps a plain-text copy of the values in the `last-applied-configuration` annotation.
 
 ```sh
 # Postgres superuser. CloudNativePG reads it (enableSuperuserAccess is on); nothing
@@ -58,6 +59,10 @@ kubectl -n default create secret generic grafana-postgres-role --type=kubernetes
   --from-literal=username=grafana --from-literal=password='<grafana password>'
 kubectl -n default label secret grafana-postgres-role cnpg.io/reload=true
 kubectl -n monitoring create secret generic grafana-postgres --from-literal=password='<grafana password>'
+
+# Grafana's admin login (helm/grafana.yaml, admin.existingSecret)
+kubectl -n monitoring create secret generic grafana-admin \
+  --from-literal=admin-user=admin --from-literal=admin-password='<admin password>'
 
 # Redis password (the server and its exporter read it)
 kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<redis password>'
@@ -82,18 +87,19 @@ kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSW
 ## Rebuild from scratch
 
 ```sh
-make repos
 # create the Secrets above, then:
-make all
+make bootstrap
 ```
 
-`make all` runs in dependency order: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, then the rest of monitoring, then Argo CD. That includes the importer's Application. Its Secrets aren't in Git, so create them first from the importer repo (`make secrets`), then sync it in Argo CD.
+`make bootstrap` installs Argo CD from `helm/argocd.yaml` and applies the root Application. Argo CD then syncs `apps/` in waves, each waiting for the previous one to be Healthy: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, the rest of monitoring, and last Argo CD itself, Image Updater and the importer's Application. The importer's Secrets aren't in Git: once `postgres-app` and `rabbitmq-default-user` exist, create them from the importer repo (`make secrets`), then sync it in Argo CD.
 
 ## Changing something
 
-Edit the file, then run its target, e.g. `make loki` or `make data`. Each target is an idempotent `helm upgrade --install` or `kubectl apply`. To upgrade a chart, change its `--version` in the Makefile and check the chart's upgrade notes first.
+Edit the file and merge it to `main`; Argo CD syncs it within about 3 minutes. To upgrade a chart, change `targetRevision` in its `apps/<name>.yaml` and check the chart's upgrade notes first. For Argo CD, also change `ARGOCD_CHART` in the Makefile.
 
-`make diff` shows any drift between `manifests/` and the cluster. For a Helm release, compare `helm get values <release> -n <namespace>` with its file.
+Every Application syncs automatically with prune and without selfHeal, like the importer: a change made by hand stays until the next commit and shows as OutOfSync meanwhile. The Argo CD UI shows any drift and its diff. Postgres, RabbitMQ and Redis are never pruned or deleted by Argo CD (`Prune=false,Delete=false`); removing them takes a `kubectl delete`.
+
+To add a component, add its Application to `apps/` with a sync wave, and its namespace to the `platform` project's destinations in `bootstrap/platform.yaml` (then `make root`).
 
 ## Apps (Argo CD)
 
@@ -103,6 +109,6 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 | --- | --- | --- |
 | `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
 
-Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater-controller --replicas=0`. To roll back, add the bad version to the rule's `ignoreTags` (`commonUpdateSettings.ignoreTags: ["1.7.0"]`), `make argocd-apps`, then revert its commit in the app's repo. Reverting alone doesn't stick: on its next check Image Updater sees the bad tag is still the newest and commits it again.
+Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater-controller --replicas=0`. To roll back, add the bad version to the rule's `ignoreTags` (`commonUpdateSettings.ignoreTags: ["1.7.0"]`) and merge it, then revert its commit in the app's repo. Reverting alone doesn't stick: on its next check Image Updater sees the bad tag is still the newest and commits it again.
 
 Deleting an Application leaves what it deployed running (there's no resources-finalizer).

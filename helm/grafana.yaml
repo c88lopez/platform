@@ -1,7 +1,7 @@
 # Grafana (grafana/grafana 10.5.15), release "my-grafana". Only the settings
 # that differ from the chart's defaults are here.
 #
-#   make grafana
+#   Deployed by Argo CD: apps/grafana.yaml
 #
 # Dashboards and datasources also come from ConfigMaps in any namespace,
 # through the sidecars: label grafana_dashboard / grafana_datasource, and
@@ -11,6 +11,15 @@
 # The PostgreSQL datasource logs in as `grafana`, a read-only database user
 # (manifests/data/postgres.yaml). Its password comes from the grafana-postgres Secret
 # in `monitoring` (see README, "Secrets"), not from this file.
+#
+# The admin login comes from the grafana-admin Secret (README, "Secrets").
+# Without it the chart generates a random password on every render, which
+# under Argo CD means a new password and a restart on every sync.
+admin:
+  existingSecret: grafana-admin
+# The chart's `helm test` pod; Argo CD doesn't run Helm tests.
+testFramework:
+  enabled: false
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1

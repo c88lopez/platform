@@ -1,0 +1,67 @@
+# The two things Argo CD can't deploy for itself: the project the platform
+# runs in, and the root Application. `make bootstrap` applies this file; from
+# then on, a commit to main is a deploy.
+#
+# Infra needs CRDs, ClusterRoles and webhooks, so unlike `apps` this project
+# may create any cluster-scoped resource. Its sources are still limited to
+# this repo and the charts' repos, and its destinations to the infra namespaces.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: Operators, data services, monitoring and Argo CD itself, from c88lopez/platform
+  sourceRepos:
+    - https://github.com/c88lopez/platform.git
+    - https://charts.jetstack.io
+    - https://prometheus-community.github.io/helm-charts
+    - https://cloudnative-pg.github.io/charts
+    - https://kubernetes-sigs.github.io/metrics-server/
+    - https://kedacore.github.io/charts
+    - https://grafana.github.io/helm-charts
+    - https://argoproj.github.io/argo-helm
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: argocd }
+    - { server: https://kubernetes.default.svc, namespace: cert-manager }
+    - { server: https://kubernetes.default.svc, namespace: cnpg-system }
+    - { server: https://kubernetes.default.svc, namespace: rabbitmq-system }
+    - { server: https://kubernetes.default.svc, namespace: kube-system }
+    - { server: https://kubernetes.default.svc, namespace: keda }
+    - { server: https://kubernetes.default.svc, namespace: monitoring }
+    - { server: https://kubernetes.default.svc, namespace: default }
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+# The root ("app of apps"): one Application per file in apps/. Their
+# sync-wave annotations give the install order on an empty cluster; each wave
+# waits for the previous one to be Healthy (see the Application health check
+# in helm/argocd.yaml):
+#   0 cert-manager
+#   1 kube-prometheus-stack (the monitoring CRDs)
+#   2 operators: cloudnative-pg, rabbitmq-operator, keda, metrics-server
+#   3 data
+#   4 grafana, loki, tempo, alloy, monitoring-manifests
+#   5 argocd, argocd-image-updater, argocd-apps (the importer)
+#
+# Removing a file from apps/ deletes that Application but not what it
+# deployed (no resources-finalizer), like the importer Application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/c88lopez/platform.git
+    targetRevision: main
+    path: apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
