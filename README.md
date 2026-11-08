@@ -36,7 +36,7 @@ Makefile                     `make bootstrap`: installs Argo CD, then the root A
 | `rabbitmq-system` | RabbitMQ cluster operator | Manages the `rabbitmq` cluster |
 | `kube-system` | metrics-server | Pods' current CPU and memory, for HorizontalPodAutoscalers and `kubectl top` |
 | `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
-| `default` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
+| `data` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
 | `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
 
@@ -49,15 +49,15 @@ Secrets are never committed. Create these before `make bootstrap`: the `data`, `
 ```sh
 # Postgres superuser. CloudNativePG reads it (enableSuperuserAccess is on); nothing
 # else should log in as it. cnpg.io/reload=true makes a new password take effect.
-kubectl -n default create secret generic postgres-superuser --type=kubernetes.io/basic-auth \
+kubectl -n data create secret generic postgres-superuser --type=kubernetes.io/basic-auth \
   --from-literal=username=postgres --from-literal=password='<superuser password>'
-kubectl -n default label secret postgres-superuser cnpg.io/reload=true
+kubectl -n data label secret postgres-superuser cnpg.io/reload=true
 
 # Grafana's read-only database user (the `grafana` role in manifests/data/postgres.yaml),
 # and the same password for Grafana's PostgreSQL datasource (helm/grafana.yaml).
-kubectl -n default create secret generic grafana-postgres-role --type=kubernetes.io/basic-auth \
+kubectl -n data create secret generic grafana-postgres-role --type=kubernetes.io/basic-auth \
   --from-literal=username=grafana --from-literal=password='<grafana password>'
-kubectl -n default label secret grafana-postgres-role cnpg.io/reload=true
+kubectl -n data label secret grafana-postgres-role cnpg.io/reload=true
 kubectl -n monitoring create secret generic grafana-postgres --from-literal=password='<grafana password>'
 
 # Grafana's admin login (helm/grafana.yaml, admin.existingSecret)
@@ -65,7 +65,7 @@ kubectl -n monitoring create secret generic grafana-admin \
   --from-literal=admin-user=admin --from-literal=admin-password='<admin password>'
 
 # Redis password (the server and its exporter read it)
-kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<redis password>'
+kubectl -n data create secret generic redis-secret --from-literal=REDIS_PASSWORD='<redis password>'
 
 # Image Updater's deploy key: write access to the importer repo, nothing else.
 # The private key goes only into the Secret.
@@ -77,10 +77,12 @@ rm importer-deploy-key importer-deploy-key.pub
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
 
+On an empty cluster, first remove `bootstrap.initdb.import` and `externalClusters` from `manifests/data/postgres.yaml`: they copied the `app` database from the old cluster in `default` when Postgres moved to `data`, and there's nothing to copy from on a fresh one.
+
 To rotate a password, replace the Secret, which drops any old annotation, then restart whatever reads it (CloudNativePG picks up its own):
 
 ```sh
-kubectl -n default create secret generic redis-secret --from-literal=REDIS_PASSWORD='<new>' \
+kubectl -n data create secret generic redis-secret --from-literal=REDIS_PASSWORD='<new>' \
   --dry-run=client -o yaml | kubectl replace -f -
 ```
 

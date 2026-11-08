@@ -1,8 +1,13 @@
-# Postgres, RabbitMQ and Redis. Needs their Secrets (README).
+# Postgres, RabbitMQ and Redis, in the `data` namespace. Needs their Secrets
+# (README).
+#
+# Not named `data`: that Application deployed them to `default`. Removing it
+# (no resources-finalizer) left those running and unmanaged, instead of
+# pruning them, so the new Postgres could copy the old one's data.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: data
+  name: data-services
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "3"
@@ -14,7 +19,7 @@ spec:
     path: manifests/data
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: data
   syncPolicy:
     automated:
       prune: true

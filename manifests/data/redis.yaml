@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: redis
-  namespace: default
+  namespace: data
   annotations:
     # Never deleted by Argo CD, like postgres.yaml.
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
@@ -95,7 +95,7 @@ metadata:
   labels:
     app: redis
   name: redis
-  namespace: default
+  namespace: data
 spec:
   ports:
   - name: redis
@@ -109,7 +109,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: redis
-  namespace: default
+  namespace: data
 spec:
   podMetricsEndpoints:
   - interval: 30s

@@ -77,7 +77,7 @@ datasources:
         password: "${GRAFANA_POSTGRES_PASSWORD}"
       type: grafana-postgresql-datasource
       uid: postgres
-      url: postgres.default.svc.cluster.local:5432
+      url: postgres.data.svc.cluster.local:5432
       user: grafana
 initChownData:
   securityContext:

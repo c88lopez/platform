@@ -2,7 +2,7 @@ apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
 metadata:
   name: rabbitmq
-  namespace: default
+  namespace: data
   annotations:
     # Never deleted by Argo CD, like postgres.yaml.
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
@@ -22,7 +22,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: rabbitmq
-  namespace: default
+  namespace: data
 spec:
   endpoints:
   - interval: 15s
