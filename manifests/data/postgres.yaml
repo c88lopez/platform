@@ -2,7 +2,7 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: postgres
-  namespace: default
+  namespace: data
   annotations:
     # Holds data that isn't backed up: Argo CD never deletes it, even when this
     # file is removed. Delete it by hand if that's really the intent.
@@ -13,7 +13,7 @@ spec:
   instances: 1
   managed:
     # Database users besides `app` (created by the bootstrap) and `postgres`.
-    # Each password comes from a kubernetes.io/basic-auth Secret in `default`
+    # Each password comes from a kubernetes.io/basic-auth Secret in `data`
     # (see README, "Secrets"); cnpg.io/reload=true on it applies a new one.
     roles:
     - name: grafana
@@ -47,12 +47,38 @@ spec:
     size: 1Gi
   superuserSecret:
     name: postgres-superuser
+  # Only read when the cluster is first created. This one moved here from
+  # `default`: it was created with a copy of the `app` database of the old
+  # cluster (pg_dump/pg_restore, as `app`). On an empty cluster, delete the
+  # import and externalClusters to start with an empty `app` instead.
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      localeCollate: C
+      localeCType: C
+      import:
+        type: microservice
+        databases:
+        - app
+        source:
+          externalCluster: postgres-default
+  externalClusters:
+  - name: postgres-default
+    connectionParameters:
+      host: postgres-rw.default.svc
+      user: postgres
+      dbname: postgres
+      sslmode: require
+    password:
+      name: postgres-superuser # the same password as the old cluster's superuser
+      key: password
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: postgres
-  namespace: default
+  namespace: data
 spec:
   podMetricsEndpoints:
   - interval: 30s
