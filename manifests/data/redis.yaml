@@ -3,6 +3,9 @@ kind: StatefulSet
 metadata:
   name: redis
   namespace: default
+  annotations:
+    # Never deleted by Argo CD, like postgres.yaml.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   replicas: 1
   selector:

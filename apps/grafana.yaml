@@ -1,0 +1,32 @@
+# Grafana. Needs the grafana-postgres and grafana-admin Secrets (README).
+# Chart grafana 10.5.15, release "my-grafana", values in helm/grafana.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 10.5.15
+      helm:
+        releaseName: my-grafana
+        valueFiles:
+          - $values/helm/grafana.yaml
+    - repoURL: https://github.com/c88lopez/platform.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

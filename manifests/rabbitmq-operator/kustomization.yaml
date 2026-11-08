@@ -1,0 +1,7 @@
+# The RabbitMQ cluster operator, from its pinned upstream release manifest
+# (exactly what's installed; it isn't copied here). To upgrade, change the
+# version in the URL and check the release notes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/rabbitmq/cluster-operator/releases/download/v2.23.2/cluster-operator-ghcr-io.yml

@@ -1,13 +1,34 @@
-# Argo CD: deploys the apps (importer) from Git. Infra in this repo is still
-# installed with make; Argo CD only manages what has an Application for it.
+# Argo CD: deploys everything in this repo (apps/) and the apps (importer)
+# from Git, including itself (apps/argocd.yaml). `make bootstrap` renders this
+# file for the first install.
 
 configs:
   cm:
     # Links in the UI and CLI point here (the chart's default is argocd.example.com).
     url: http://192.168.68.57:30081
+    # Argo CD doesn't report an Application's health on its parent by default,
+    # so the root Application's sync waves wouldn't wait for one wave's apps to
+    # be Healthy before starting the next (e.g. the operators before the data
+    # services they create). This is the check from Argo CD's docs.
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
   params:
     # Serve plain HTTP: the UI is only reachable on the LAN, through the NodePort below.
     server.insecure: true
+    # Compare Git with the cluster through a server-side apply dry run: fields
+    # set by other controllers (webhook caBundles injected by cert-manager,
+    # KEDA and CloudNativePG, defaults from admission webhooks) then don't
+    # show as differences.
+    controller.diff.server.side: true
 
 server:
   service:

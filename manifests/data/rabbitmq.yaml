@@ -3,6 +3,9 @@ kind: RabbitmqCluster
 metadata:
   name: rabbitmq
   namespace: default
+  annotations:
+    # Never deleted by Argo CD, like postgres.yaml.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   persistence:
     storage: 5Gi

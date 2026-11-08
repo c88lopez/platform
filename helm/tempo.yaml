@@ -1,7 +1,7 @@
 # Tempo (grafana/tempo chart 1.24.4) in single binary mode with local storage.
 # Traces arrive over OTLP, usually via Alloy (see alloy.yaml).
 #
-#   make tempo
+#   Deployed by Argo CD: apps/tempo.yaml
 tempo:
   retention: 72h
   reportingEnabled: false

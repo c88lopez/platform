@@ -3,6 +3,10 @@ kind: Cluster
 metadata:
   name: postgres
   namespace: default
+  annotations:
+    # Holds data that isn't backed up: Argo CD never deletes it, even when this
+    # file is removed. Delete it by hand if that's really the intent.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   enableSuperuserAccess: true
   imageName: ghcr.io/cloudnative-pg/postgresql:18

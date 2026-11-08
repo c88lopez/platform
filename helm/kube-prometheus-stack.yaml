@@ -2,7 +2,7 @@
 # Prometheus, its operator, kube-state-metrics and node-exporter. Grafana is
 # a separate release (grafana.yaml) and Alertmanager is off.
 #
-#   make kube-prometheus-stack
+#   Deployed by Argo CD: apps/kube-prometheus-stack.yaml
 #
 # The *NilUsesHelmValues: false settings make Prometheus pick up every
 # ServiceMonitor, PodMonitor and rule in the cluster, not only the chart's.

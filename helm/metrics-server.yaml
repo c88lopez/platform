@@ -3,7 +3,7 @@
 # HorizontalPodAutoscalers and `kubectl top`. Not Prometheus: it keeps only the
 # latest sample, scraped from each kubelet every 15s.
 #
-#   make metrics-server
+#   Deployed by Argo CD: apps/metrics-server.yaml
 args:
   # Docker Desktop's kubelet serves a self-signed certificate that doesn't name
   # its IP, so metrics-server can't verify it. A real cluster shouldn't need this.

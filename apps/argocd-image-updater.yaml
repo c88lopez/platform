@@ -1,0 +1,32 @@
+# Image Updater: commits new image tags to the apps' repos. Needs the importer-git-write Secret (README).
+# Chart argocd-image-updater 1.4.0, release "argocd-image-updater", values in helm/argocd-image-updater.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argocd-image-updater
+      targetRevision: 1.4.0
+      helm:
+        releaseName: argocd-image-updater
+        valueFiles:
+          - $values/helm/argocd-image-updater.yaml
+    - repoURL: https://github.com/c88lopez/platform.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
