@@ -9,7 +9,10 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   enableSuperuserAccess: true
-  imageName: ghcr.io/cloudnative-pg/postgresql:18
+  # Pinned to a version and its digest: `18` (and even `18.6`) is a moving tag,
+  # and a new image there would restart the database into a new minor version
+  # on the next pull. To upgrade, change both, from the image's registry page.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6@sha256:899d3ed526b659d77935dde0e6bf2d69dbbf17d3d8c6486ca8cfd04bd3c18533
   instances: 1
   managed:
     # Database users besides `app` (created by the bootstrap) and `postgres`.
