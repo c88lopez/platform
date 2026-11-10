@@ -50,32 +50,15 @@ spec:
     size: 1Gi
   superuserSecret:
     name: postgres-superuser
-  # Only read when the cluster is first created. This one moved here from
-  # `default`: it was created with a copy of the `app` database of the old
-  # cluster (pg_dump/pg_restore, as `app`). On an empty cluster, delete the
-  # import and externalClusters to start with an empty `app` instead.
+  # Only read when the cluster is first created: an empty `app` database,
+  # owned by the `app` user. (It once imported the old cluster's `app` from
+  # `default`, when Postgres moved to `data`; that copy is done.)
   bootstrap:
     initdb:
       database: app
       owner: app
       localeCollate: C
       localeCType: C
-      import:
-        type: microservice
-        databases:
-        - app
-        source:
-          externalCluster: postgres-default
-  externalClusters:
-  - name: postgres-default
-    connectionParameters:
-      host: postgres-rw.default.svc
-      user: postgres
-      dbname: postgres
-      sslmode: require
-    password:
-      name: postgres-superuser # the same password as the old cluster's superuser
-      key: password
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
