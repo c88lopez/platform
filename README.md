@@ -77,8 +77,6 @@ rm importer-deploy-key importer-deploy-key.pub
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
 
-On an empty cluster, first remove `bootstrap.initdb.import` and `externalClusters` from `manifests/data/postgres.yaml`: they copied the `app` database from the old cluster in `default` when Postgres moved to `data`, and there's nothing to copy from on a fresh one.
-
 To rotate a password, replace the Secret, which drops any old annotation, then restart whatever reads it (CloudNativePG picks up its own):
 
 ```sh
