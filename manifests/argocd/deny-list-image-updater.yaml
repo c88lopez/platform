@@ -1,0 +1,34 @@
+# Deploys new deny-list releases: when CI pushes a new 0.x.y tag, Image Updater
+# (checking every 2 minutes) commits it as newTag in k8s/kustomization.yaml on
+# deny-list's main, and the deny-list Application syncs it.
+#
+# Only full x.y.z tags count; CI's main, sha-*, 0.1 and latest tags are ignored.
+# ~0 keeps it on 0.x: a 1.0.0 needs a person to change this.
+#
+# It pushes with a deploy key (write access to deny-list only), from the
+# deny-list-git-write Secret; see the README. deny-list's main only takes PRs,
+# but its ruleset lets deploy keys push directly, so these commits go through.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: deny-list
+  namespace: argocd
+spec:
+  commonUpdateSettings:
+    updateStrategy: semver
+    allowTags: regexp:^[0-9]+\.[0-9]+\.[0-9]+$
+  writeBackConfig:
+    method: git:secret:argocd/deny-list-git-write
+    gitConfig:
+      # SSH, for the deploy key. Argo CD itself still reads the repo over HTTPS.
+      repository: git@github.com:c88lopez/deny-list.git
+      branch: main
+      writeBackTarget: kustomization
+  applicationRefs:
+    - namePattern: deny-list
+      images:
+        - alias: api
+          imageName: ghcr.io/c88lopez/deny-list:~0
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/c88lopez/deny-list

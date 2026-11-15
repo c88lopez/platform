@@ -10,9 +10,12 @@ spec:
   description: Applications deployed from their own repos
   sourceRepos:
     - https://github.com/c88lopez/importer.git
+    - https://github.com/c88lopez/deny-list.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: importer
+    - server: https://kubernetes.default.svc
+      namespace: deny-list
   # The only cluster-scoped thing an app may create is its own namespace.
   clusterResourceWhitelist:
     - group: ""

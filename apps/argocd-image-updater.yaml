@@ -1,4 +1,4 @@
-# Image Updater: commits new image tags to the apps' repos. Needs the importer-git-write Secret (README).
+# Image Updater: commits new image tags to the apps' repos. Needs each app's <app>-git-write Secret (README).
 # Chart argocd-image-updater 1.4.0, release "argocd-image-updater", values in helm/argocd-image-updater.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

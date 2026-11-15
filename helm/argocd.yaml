@@ -1,4 +1,4 @@
-# Argo CD: deploys everything in this repo (apps/) and the apps (importer)
+# Argo CD: deploys everything in this repo (apps/) and the apps (importer, deny-list)
 # from Git, including itself (apps/argocd.yaml). `make bootstrap` renders this
 # file for the first install.
 
@@ -38,7 +38,7 @@ configs:
 server:
   service:
     type: NodePort
-    nodePortHttp: 30081 # the importer API has 30080
+    nodePortHttp: 30081 # importer-api has 30080, importer-graphql 30082, deny-list 30083
     nodePortHttps: 30444
   metrics:
     enabled: true
