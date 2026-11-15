@@ -73,6 +73,20 @@ ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f importer-deploy-key
 gh repo deploy-key add importer-deploy-key.pub -R c88lopez/importer --allow-write -t argocd-image-updater
 kubectl -n argocd create secret generic importer-git-write --from-file=sshPrivateKey=importer-deploy-key
 rm importer-deploy-key importer-deploy-key.pub
+
+# deny-list's database user (the `deny_list` role in manifests/data/postgres.yaml).
+# Its repo's `make secrets` reads it to build the app's DATABASE_URL.
+kubectl -n data create secret generic deny-list-postgres-role --type=kubernetes.io/basic-auth \
+  --from-literal=username=deny_list --from-literal=password='<deny_list password>'
+kubectl -n data label secret deny-list-postgres-role cnpg.io/reload=true
+
+# Image Updater's deploy key for deny-list: write access to that repo only. Its
+# `main` ruleset lets deploy keys bypass the PR rule, so this must stay the
+# repo's only deploy key with write access.
+ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f deny-list-deploy-key
+gh repo deploy-key add deny-list-deploy-key.pub -R c88lopez/deny-list --allow-write -t argocd-image-updater
+kubectl -n argocd create secret generic deny-list-git-write --from-file=sshPrivateKey=deny-list-deploy-key
+rm deny-list-deploy-key deny-list-deploy-key.pub
 ```
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
@@ -91,7 +105,7 @@ kubectl -n data create secret generic redis-secret --from-literal=REDIS_PASSWORD
 make bootstrap
 ```
 
-`make bootstrap` installs Argo CD from `helm/argocd.yaml` and applies the root Application. Argo CD then syncs `apps/` in waves, each waiting for the previous one to be Healthy: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, the rest of monitoring, and last Argo CD itself, Image Updater and the importer's Application. The importer's Secrets aren't in Git: once `postgres-app` and `rabbitmq-default-user` exist, create them from the importer repo (`make secrets`), then sync it in Argo CD.
+`make bootstrap` installs Argo CD from `helm/argocd.yaml` and applies the root Application. Argo CD then syncs `apps/` in waves, each waiting for the previous one to be Healthy: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, the rest of monitoring, and last Argo CD itself, Image Updater and the importer's Application. The apps' Secrets aren't in Git: once `postgres-app` and `rabbitmq-default-user` exist, create the importer's from its repo (`make secrets`), and deny-list's from its own, then sync them in Argo CD.
 
 ## Changing something
 
@@ -108,6 +122,7 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 | Application | Source | Sync |
 | --- | --- | --- |
 | `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
+| `deny-list` | `c88lopez/deny-list`, `k8s/` on `main`; NodePort 30083 | automatic, with prune; no selfHeal |
 
 Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater-controller --replicas=0`. To roll back, add the bad version to the rule's `ignoreTags` (`commonUpdateSettings.ignoreTags: ["1.7.0"]`) and merge it, then revert its commit in the app's repo. Reverting alone doesn't stick: on its next check Image Updater sees the bad tag is still the newest and commits it again.
 

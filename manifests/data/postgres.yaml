@@ -28,6 +28,12 @@ spec:
       - pg_monitor
       passwordSecret:
         name: grafana-postgres-role
+    # deny-list's user: owns the deny_list database (below) and nothing else.
+    - name: deny_list
+      ensure: present
+      login: true
+      passwordSecret:
+        name: deny-list-postgres-role
     services:
       additional:
       - selectorType: rw
@@ -59,6 +65,20 @@ spec:
       owner: app
       localeCollate: C
       localeCType: C
+---
+# deny-list's own database, so it doesn't share importer's `app`. CloudNativePG
+# creates it once the deny_list role exists, and keeps it if this resource is
+# deleted (databaseReclaimPolicy defaults to retain).
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: deny-list
+  namespace: data
+spec:
+  cluster:
+    name: postgres
+  name: deny_list
+  owner: deny_list
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor

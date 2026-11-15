@@ -43,10 +43,10 @@ spec:
 #   2 operators: cloudnative-pg, rabbitmq-operator, keda, metrics-server
 #   3 data
 #   4 grafana, loki, tempo, alloy, monitoring-manifests
-#   5 argocd, argocd-image-updater, argocd-apps (the importer)
+#   5 argocd, argocd-image-updater, argocd-apps (importer, deny-list)
 #
 # Removing a file from apps/ deletes that Application but not what it
-# deployed (no resources-finalizer), like the importer Application.
+# deployed (no resources-finalizer), like the apps' Applications.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
