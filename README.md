@@ -20,8 +20,8 @@ helm/                        values for each Helm release (only what differs fro
   argocd.yaml                  argo/argo-cd 10.11.7 (Argo CD 3.5.7)    ns argocd
   argocd-image-updater.yaml    argo/argocd-image-updater 1.4.0         ns argocd
 manifests/
-  data/                        Postgres (CloudNativePG Cluster), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
-  monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ dashboard
+  data/                        Postgres (CloudNativePG Cluster and its PgBouncer Pooler), RabbitMQ (RabbitmqCluster), Redis (StatefulSet), with their monitors
+  monitoring/                  cAdvisor, Grafana's Loki/Tempo datasources, the RabbitMQ and PgBouncer dashboards
   argocd/                      the apps Argo CD deploys: the `apps` project and one Application per app, and what Image Updater watches
   rabbitmq-operator/           a kustomization of the operator's pinned upstream release manifest (v2.23.2, `cluster-operator-ghcr-io.yml`)
 Makefile                     `make bootstrap`: installs Argo CD, then the root Application
@@ -36,7 +36,7 @@ Makefile                     `make bootstrap`: installs Argo CD, then the root A
 | `rabbitmq-system` | RabbitMQ cluster operator | Manages the `rabbitmq` cluster |
 | `kube-system` | metrics-server | Pods' current CPU and memory, for HorizontalPodAutoscalers and `kubectl top` |
 | `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
-| `data` | `postgres` (1 instance, Postgres 18), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-rw`/`-ro`/`-r`, `rabbitmq`, `redis` |
+| `data` | `postgres` (1 instance, Postgres 18) behind `postgres-pooler-rw` (PgBouncer, transaction mode), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-pooler-rw` (apps), `postgres-rw`/`-ro`/`-r` (migrations, Grafana), `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
 | `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
 

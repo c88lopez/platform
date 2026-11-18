@@ -1,0 +1,61 @@
+apiVersion: v1
+data:
+  pgbouncer.json: |-
+    {
+     "editable": true,
+     "graphTooltip": 1,
+     "id": null,
+     "panels": [
+      {
+       "datasource": { "type": "prometheus", "uid": "prometheus" },
+       "description": "Clients waiting for a real Postgres connection. Sustained values mean default_pool_size / max_db_connections are too small.",
+       "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+       "id": 1,
+       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+       "targets": [
+        {
+         "datasource": { "type": "prometheus", "uid": "prometheus" },
+         "expr": "sum by (database, user) (cnpg_pgbouncer_pools_cl_waiting{namespace=\"data\"})",
+         "legendFormat": "{{database}}/{{user}}",
+         "refId": "A"
+        }
+       ],
+       "title": "Clients waiting",
+       "type": "timeseries"
+      },
+      {
+       "datasource": { "type": "prometheus", "uid": "prometheus" },
+       "description": "Real Postgres connections in use by a client, per database/user pair (default_pool_size caps each).",
+       "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+       "id": 2,
+       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+       "targets": [
+        {
+         "datasource": { "type": "prometheus", "uid": "prometheus" },
+         "expr": "sum by (database, user) (cnpg_pgbouncer_pools_sv_active{namespace=\"data\"})",
+         "legendFormat": "{{database}}/{{user}}",
+         "refId": "A"
+        }
+       ],
+       "title": "Server connections active",
+       "type": "timeseries"
+      }
+     ],
+     "refresh": "30s",
+     "schemaVersion": 39,
+     "tags": ["postgres", "pgbouncer"],
+     "time": { "from": "now-6h", "to": "now" },
+     "title": "PgBouncer",
+     "uid": "pgbouncer",
+     "version": 1
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    grafana_folder: PostgreSQL
+  labels:
+    grafana_dashboard: '1'
+  name: grafana-dashboard-pgbouncer
+  namespace: monitoring

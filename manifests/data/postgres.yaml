@@ -80,6 +80,44 @@ spec:
   name: deny_list
   owner: deny_list
 ---
+# PgBouncer in front of `postgres`, so the services' pods share a small, fixed
+# number of real connections instead of each pod holding its own. Services
+# connect to postgres-pooler-rw.data.svc. Transaction mode: no session state
+# (session advisory locks, LISTEN/NOTIFY, SET outside a transaction, temp
+# tables), so migrations and Grafana stay on the direct `postgres-rw`/`postgres`.
+#
+# Budget: up to default_pool_size real connections per database/user pair, and
+# max_db_connections per database across its users, out of max_connections 100.
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: postgres-pooler-rw
+  namespace: data
+spec:
+  cluster:
+    name: postgres
+  instances: 1
+  type: rw
+  pgbouncer:
+    poolMode: transaction
+    parameters:
+      max_client_conn: "1000"
+      default_pool_size: "20"
+      max_db_connections: "30"
+      # Tracks protocol-level prepared statements per server connection, so
+      # pgx's default statement cache works in transaction mode.
+      max_prepared_statements: "200"
+  template:
+    spec:
+      containers:
+      - name: pgbouncer
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 64Mi
+---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -92,3 +130,20 @@ spec:
   selector:
     matchLabels:
       cnpg.io/cluster: postgres
+    # The Pooler's pods have their own monitor (below).
+    matchExpressions:
+    - key: cnpg.io/poolerName
+      operator: DoesNotExist
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: postgres-pooler-rw
+  namespace: data
+spec:
+  podMetricsEndpoints:
+  - interval: 30s
+    port: metrics
+  selector:
+    matchLabels:
+      cnpg.io/poolerName: postgres-pooler-rw
