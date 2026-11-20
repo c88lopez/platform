@@ -41,6 +41,15 @@ spec:
       login: true
       passwordSecret:
         name: padel-admin-postgres-role
+    # padel-admin's local development user, for the laptop (make tunnel): owns
+    # padel_admin_dev, padel_admin_test and padel_admin_e2e (that repo's
+    # k8s/dev/), and pg_hba (below) refuses it on every other database. No
+    # access to padel_admin, the deployed app's data.
+    - name: padel_admin_dev
+      ensure: present
+      login: true
+      passwordSecret:
+        name: padel-admin-dev-postgres-role
     services:
       additional:
       - selectorType: rw
@@ -49,6 +58,14 @@ spec:
             name: postgres
           spec:
             type: ClusterIP
+  # Every database accepts CONNECT from any role (Postgres's default), so a
+  # user is kept to its own databases here instead. The operator puts these
+  # before its final `host all all all scram-sha-256`, and a port-forward
+  # arrives over TCP, so they apply to make tunnel too.
+  postgresql:
+    pg_hba:
+    - host padel_admin_dev,padel_admin_test,padel_admin_e2e padel_admin_dev all scram-sha-256
+    - host all padel_admin_dev all reject
   # It uses ~10m CPU and ~140Mi (128Mi of it shared_buffers) at rest. The
   # CloudNativePG dashboard's utilisation gauges divide usage by these requests,
   # and show "Missing request" without them. No CPU limit: throttling the only

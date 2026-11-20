@@ -99,6 +99,13 @@ ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f padel-admin-deploy-key
 gh repo deploy-key add padel-admin-deploy-key.pub -R c88lopez/padel-admin --allow-write -t argocd-image-updater
 kubectl -n argocd create secret generic padel-admin-git-write --from-file=sshPrivateKey=padel-admin-deploy-key
 rm padel-admin-deploy-key padel-admin-deploy-key.pub
+
+# padel-admin's local development user (the `padel_admin_dev` role): owns only
+# the dev, test and e2e databases, and pg_hba refuses it on the others. Its
+# repo's Makefile reads it for make run and the tests.
+kubectl -n data create secret generic padel-admin-dev-postgres-role --type=kubernetes.io/basic-auth \
+  --from-literal=username=padel_admin_dev --from-literal=password='<padel_admin_dev password>'
+kubectl -n data label secret padel-admin-dev-postgres-role cnpg.io/reload=true
 ```
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
