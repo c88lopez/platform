@@ -6,6 +6,7 @@
 # Dashboards and datasources also come from ConfigMaps in any namespace,
 # through the sidecars: label grafana_dashboard / grafana_datasource, and
 # the grafana_folder annotation picks the folder (see importer's dashboards).
+# Project folders are nested under Services by manifests/monitoring/grafana-folders.yaml.
 # The Loki and Tempo datasources are manifests/monitoring/grafana-datasources.yaml.
 #
 # The PostgreSQL datasource logs in as `grafana`, a read-only database user

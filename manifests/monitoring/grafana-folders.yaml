@@ -1,0 +1,130 @@
+# Nests each project's dashboard folder under Services in Grafana, e.g.
+# Services > Importer > API, GraphQL, Worker.
+#
+# The apps' dashboard ConfigMaps set grafana_folder to the project's name. The
+# sidecar provisioner turns that into a top-level folder (a path like
+# "Services/Importer" ends up as just "Importer"), but it finds the folder by
+# title wherever it is, so moving it under Services once keeps it there. This
+# Job does that move, or creates the folder there if the app hasn't synced yet.
+#
+# Runs after every sync of this Application. A new project: add its folder
+# title to PROJECTS below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-folders
+  namespace: monitoring
+data:
+  PROJECTS: |
+    Importer
+    Padel Admin
+  nest-folders.py: |
+    import base64, json, os, re, sys, time, urllib.error, urllib.request
+
+    URL = os.environ.get("GRAFANA_URL", "http://my-grafana.monitoring.svc")
+    PARENT = "Services"
+    PROJECTS = [p.strip() for p in os.environ["PROJECTS"].splitlines() if p.strip()]
+    AUTH = base64.b64encode(
+        f'{os.environ["GRAFANA_USER"]}:{os.environ["GRAFANA_PASSWORD"]}'.encode()
+    ).decode()
+
+
+    def call(method, path, body=None):
+        req = urllib.request.Request(
+            URL + path,
+            method=method,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Authorization": f"Basic {AUTH}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return json.load(res)
+
+
+    def folders(parent_uid=None):
+        query = f"?limit=1000&parentUid={parent_uid}" if parent_uid else "?limit=1000"
+        return {f["title"]: f["uid"] for f in call("GET", "/api/folders" + query)}
+
+
+    def slug(title):
+        return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
+    # Grafana may still be starting: the grafana Application syncs in the same wave.
+    for attempt in range(60):
+        try:
+            call("GET", "/api/health")
+            break
+        except (urllib.error.URLError, OSError):
+            time.sleep(5)
+    else:
+        sys.exit("Grafana never answered")
+
+    root = folders()
+    parent = root.get(PARENT) or call("POST", "/api/folders", {"uid": slug(PARENT), "title": PARENT})["uid"]
+    nested = folders(parent)
+    for title in PROJECTS:
+        if title in nested:
+            print(f"{PARENT}/{title}: already nested")
+        elif title in root:
+            call("POST", f"/api/folders/{root[title]}/move", {"parentUid": parent})
+            print(f"{PARENT}/{title}: moved")
+        else:
+            call("POST", "/api/folders", {"uid": slug(title), "title": title, "parentUid": parent})
+            print(f"{PARENT}/{title}: created")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: grafana-folders
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: nest-folders
+          image: python:3.13.1-alpine
+          command: ["python3", "/script/nest-folders.py"]
+          env:
+            - name: PROJECTS
+              valueFrom:
+                configMapKeyRef:
+                  name: grafana-folders
+                  key: PROJECTS
+            - name: GRAFANA_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-user
+            - name: GRAFANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
+          volumeMounts:
+            - name: script
+              mountPath: /script
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: script
+          configMap:
+            name: grafana-folders
+            items:
+              - key: nest-folders.py
+                path: nest-folders.py
