@@ -34,6 +34,13 @@ spec:
       login: true
       passwordSecret:
         name: deny-list-postgres-role
+    # padel-admin's user: owns the padel_admin database (below) and its dev
+    # databases (padel_admin_test, padel_admin_e2e, from that repo's k8s/dev/).
+    - name: padel_admin
+      ensure: present
+      login: true
+      passwordSecret:
+        name: padel-admin-postgres-role
     services:
       additional:
       - selectorType: rw
@@ -79,6 +86,18 @@ spec:
     name: postgres
   name: deny_list
   owner: deny_list
+---
+# padel-admin's own database, like deny-list's.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: padel-admin
+  namespace: data
+spec:
+  cluster:
+    name: postgres
+  name: padel_admin
+  owner: padel_admin
 ---
 # PgBouncer in front of `postgres`, so the services' pods share a small, fixed
 # number of real connections instead of each pod holding its own. Services

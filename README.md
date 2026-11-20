@@ -1,6 +1,6 @@
 # platform
 
-Everything that runs in the Docker Desktop cluster (`192.168.68.57`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
+Everything that runs in the Docker Desktop cluster (`192.168.68.61`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
 
 Argo CD deploys all of it from this repo's `main`: one Application per file in `apps/`, under a root Application (`bootstrap/platform.yaml`). A commit is a deploy. The Makefile only bootstraps Argo CD itself on an empty cluster.
 
@@ -38,7 +38,7 @@ Makefile                     `make bootstrap`: installs Argo CD, then the root A
 | `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
 | `data` | `postgres` (1 instance, Postgres 18) behind `postgres-pooler-rw` (PgBouncer, transaction mode), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-pooler-rw` (apps), `postgres-rw`/`-ro`/`-r` (migrations, Grafana), `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
-| `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.57:30081`, user `admin`; `make argocd-password` prints the first password |
+| `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.61:30081`, user `admin`; `make argocd-password` prints the first password |
 
 Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor runs as its own DaemonSet because the kubelet's built-in one can't see container names on Docker Desktop (see `manifests/monitoring/cadvisor.yaml`).
 
@@ -87,6 +87,18 @@ ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f deny-list-deploy-key
 gh repo deploy-key add deny-list-deploy-key.pub -R c88lopez/deny-list --allow-write -t argocd-image-updater
 kubectl -n argocd create secret generic deny-list-git-write --from-file=sshPrivateKey=deny-list-deploy-key
 rm deny-list-deploy-key deny-list-deploy-key.pub
+
+# padel-admin's database user (the `padel_admin` role in manifests/data/postgres.yaml).
+# Its repo's `make secrets` reads it to build the app's DATABASE_URL.
+kubectl -n data create secret generic padel-admin-postgres-role --type=kubernetes.io/basic-auth \
+  --from-literal=username=padel_admin --from-literal=password='<padel_admin password>'
+kubectl -n data label secret padel-admin-postgres-role cnpg.io/reload=true
+
+# Image Updater's deploy key for padel-admin, like deny-list's.
+ssh-keygen -t ed25519 -N '' -C argocd-image-updater -f padel-admin-deploy-key
+gh repo deploy-key add padel-admin-deploy-key.pub -R c88lopez/padel-admin --allow-write -t argocd-image-updater
+kubectl -n argocd create secret generic padel-admin-git-write --from-file=sshPrivateKey=padel-admin-deploy-key
+rm padel-admin-deploy-key padel-admin-deploy-key.pub
 ```
 
 The operators generate the rest: CloudNativePG creates `postgres-app` (the `app` user the importer uses), and the RabbitMQ operator creates `rabbitmq-default-user`. To rebuild the cluster without losing access to the data, reuse the old values. The data itself is on `hostpath` volumes and isn't backed up.
@@ -105,7 +117,7 @@ kubectl -n data create secret generic redis-secret --from-literal=REDIS_PASSWORD
 make bootstrap
 ```
 
-`make bootstrap` installs Argo CD from `helm/argocd.yaml` and applies the root Application. Argo CD then syncs `apps/` in waves, each waiting for the previous one to be Healthy: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, the rest of monitoring, and last Argo CD itself, Image Updater and the importer's Application. The apps' Secrets aren't in Git: once `postgres-app` and `rabbitmq-default-user` exist, create the importer's from its repo (`make secrets`), and deny-list's from its own, then sync them in Argo CD.
+`make bootstrap` installs Argo CD from `helm/argocd.yaml` and applies the root Application. Argo CD then syncs `apps/` in waves, each waiting for the previous one to be Healthy: cert-manager, then Prometheus (whose CRDs the monitors need, the CloudNativePG chart's PodMonitor included), then the operators, the data services, the rest of monitoring, and last Argo CD itself, Image Updater and the importer's Application. The apps' Secrets aren't in Git: once `postgres-app` and `rabbitmq-default-user` exist, create the importer's from its repo (`make secrets`), and deny-list's and padel-admin's from their own, then sync them in Argo CD.
 
 ## Changing something
 
@@ -123,6 +135,7 @@ Each app's manifests live in its own repo; `manifests/argocd/` has one Applicati
 | --- | --- | --- |
 | `importer` | `c88lopez/importer`, `k8s/` on `main` | automatic, with prune; no selfHeal |
 | `deny-list` | `c88lopez/deny-list`, `k8s/` on `main`; NodePort 30083 | automatic, with prune; no selfHeal |
+| `padel-admin` | `c88lopez/padel-admin`, `k8s/` on `main`; NodePort 30084 | automatic, with prune; no selfHeal |
 
 Image Updater deploys new releases. Every 2 minutes it checks the registry for each image in `manifests/argocd/*-image-updater.yaml`. When it finds a newer `x.y.z` tag in the allowed range, it commits it to the app's kustomization on `main` with the app's deploy key, and Argo CD syncs that commit. For importer, `make release VERSION=1.7.0` is the whole release. To pause it, `kubectl -n argocd scale deployment/argocd-image-updater-controller --replicas=0`. To roll back, add the bad version to the rule's `ignoreTags` (`commonUpdateSettings.ignoreTags: ["1.7.0"]`) and merge it, then revert its commit in the app's repo. Reverting alone doesn't stick: on its next check Image Updater sees the bad tag is still the newest and commits it again.
 

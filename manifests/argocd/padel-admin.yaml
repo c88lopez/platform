@@ -1,0 +1,30 @@
+# padel-admin: the admin app, from k8s/ in the padel-admin repo (a kustomization; its
+# newTag is the version that runs).
+#
+# Syncs automatically: a commit to k8s/ on main (a new newTag, a ConfigMap
+# change) is deployed within about 3 minutes.
+#
+# prune: a resource removed from k8s/ is deleted from the cluster.
+# No selfHeal: a change made by hand (kubectl scale, edit) stays until the next
+# commit, and shows as OutOfSync meanwhile.
+#
+# No resources-finalizer: deleting this Application leaves everything it
+# deployed running, including the namespace and its Secret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: padel-admin
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/c88lopez/padel-admin.git
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: padel-admin
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false

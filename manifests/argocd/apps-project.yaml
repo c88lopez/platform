@@ -11,11 +11,14 @@ spec:
   sourceRepos:
     - https://github.com/c88lopez/importer.git
     - https://github.com/c88lopez/deny-list.git
+    - https://github.com/c88lopez/padel-admin.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: importer
     - server: https://kubernetes.default.svc
       namespace: deny-list
+    - server: https://kubernetes.default.svc
+      namespace: padel-admin
   # The only cluster-scoped thing an app may create is its own namespace.
   clusterResourceWhitelist:
     - group: ""
