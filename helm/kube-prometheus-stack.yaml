@@ -12,6 +12,11 @@ grafana:
   defaultDashboardsTimezone: browser
   enabled: false
   forceDeployDashboards: true
+  # The chart's dashboards go in a Kubernetes folder instead of Grafana's root.
+  sidecar:
+    dashboards:
+      annotations:
+        grafana_folder: Kubernetes
 kubeControllerManager:
   enabled: false
 kubeEtcd:
