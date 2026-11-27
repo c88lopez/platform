@@ -5,7 +5,7 @@
 configs:
   cm:
     # Links in the UI and CLI point here (the chart's default is argocd.example.com).
-    url: http://192.168.68.57:30081
+    url: http://homelab.home.arpa:30081
     # Argo CD doesn't report an Application's health on its parent by default,
     # so the root Application's sync waves wouldn't wait for one wave's apps to
     # be Healthy before starting the next (e.g. the operators before the data
