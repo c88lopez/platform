@@ -1,6 +1,6 @@
 # platform
 
-Everything that runs in the Docker Desktop cluster (`192.168.68.61`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
+Everything that runs in the Docker Desktop cluster (`homelab.home.arpa`, context `docker-desktop`) except the applications: operators, data services, monitoring and Argo CD. The apps' manifests live in their own repos, like [importer](https://github.com/c88lopez/importer).
 
 Argo CD deploys all of it from this repo's `main`: one Application per file in `apps/`, under a root Application (`bootstrap/platform.yaml`). A commit is a deploy. The Makefile only bootstraps Argo CD itself on an empty cluster.
 
@@ -38,7 +38,7 @@ Makefile                     `make bootstrap`: installs Argo CD, then the root A
 | `keda` | KEDA | Scales Deployments on events; importer-worker on its queue's length |
 | `data` | `postgres` (1 instance, Postgres 18) behind `postgres-pooler-rw` (PgBouncer, transaction mode), `rabbitmq` (1 replica, 4.3), `redis` (8, with an exporter sidecar) | Services: `postgres-pooler-rw` (apps), `postgres-rw`/`-ro`/`-r` (migrations, Grafana), `rabbitmq`, `redis` |
 | `monitoring` | Prometheus, Grafana, Loki, Tempo, Alloy, cAdvisor, node-exporter, kube-state-metrics | Grafana and Prometheus pick up dashboards, ServiceMonitors and PodMonitors from every namespace |
-| `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://192.168.68.61:30081`, user `admin`; `make argocd-password` prints the first password |
+| `argocd` | Argo CD, Image Updater | Deploys this repo and the apps from Git, and commits the apps' new image tags. UI at `http://homelab.home.arpa:30081`, user `admin`; `make argocd-password` prints the first password |
 
 Docker Desktop specifics: volumes use the `hostpath` storage class, and cAdvisor runs as its own DaemonSet because the kubelet's built-in one can't see container names on Docker Desktop (see `manifests/monitoring/cadvisor.yaml`).
 
